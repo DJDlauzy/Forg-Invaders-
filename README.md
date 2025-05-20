@@ -1,8 +1,12 @@
-Simple Frog Invaders - A Fun Browser Game!
-Hey there! Welcome to Simple Frog Invaders, a super cool space shooter game you can play right in your browser! Inspired by classic arcade games, this project lets you control a cute character (like a fox or whatever you fancy!), blast waves of frog invaders, and take on a challenging boss every five levels. It’s built with p5.js for the gameplay and a touch of Tailwind CSS for styling—simple, but a blast to play!
+ Frog Invaders - A Fun Browser Game!
+Hey there! Forg Invaders, a super cool space shooter game you can play right in your browser! Inspired by classic arcade games, this project lets you control a cute character (like a fox :3), blast waves of frog invaders, and take on a challenging boss every five levels. It’s built with p5.js for the gameplay and a touch of Tailwind CSS for styling—simple,.
 What’s This All About?
+
+A quick description of the game!
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This game is all about dodging, shooting, and having fun! You start with a little ship (or emoji character), and your mission is to fend off waves of frog aliens. Every fifth wave, a big boss shows up with its own attacks—better get those shooting skills ready! The white background keeps things clean, and the black bullets make it easy to track the action. Plus, you can tweak it to your liking!
 Getting Started
+
 Ready to jump in? Here’s how to get the game running on your own machine or Glitch project:
 
 Clone the RepoGrab the code by running this in your terminal:
