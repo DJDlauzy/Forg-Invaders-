@@ -48,5 +48,5 @@ Want to add features? Fork the repo, make your changes, and submit a pull reques
 Questions? Drop a comment or reach out—I’m happy to chat!
 
 Thanks!
-Big thanks to everyone who checks this out! It’s a passion project, and I’d love to see where it goes with your input. Happy gaming, and may your bullets always hit their mark! 🎮
-Last updated: 08:58 PM EDT, Monday, May 19, 2025
+
+Made by D-Jay! 
