@@ -1,0 +1,515 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frog Invaders</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(to bottom, #0F0C29, #302B63);
+      font-family: 'Arial', sans-serif;
+      position: relative;
+      overflow: hidden;
+    }
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      z-index: -1;
+    }
+    .stars {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 2s infinite alternate;
+      opacity: 0.7;
+    }
+    @keyframes twinkle {
+      0% { opacity: 0.7; }
+      100% { opacity: 0.2; }
+    }
+    canvas {
+      border: 4px solid #2F2F2F;
+      border-radius: 12px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+      z-index: 1;
+    }
+    #start-screen, #game-over-screen {
+      transition: opacity 0.3s ease-in-out;
+      backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.9);
+    }
+    .glow {
+      text-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+    }
+    .button-glow:hover {
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center">
+  <div class="stars" id="stars"></div>
+  <div id="game-container" class="relative">
+    <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center text-white rounded-lg hidden">
+      <div class="bg-black bg-opacity-90 p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-5xl font-bold mb-6 tracking-tight text-center glow">Frog Invaders</h1>
+        <p class="text-xl mb-6 text-center">Choose your ship and blast the frog invaders!</p>
+        <input id="player-name" type="text" placeholder="Enter Your Name" class="mb-6 p-3 rounded-lg text-black w-full text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" maxlength="20">
+        <div class="flex justify-center space-x-6 mb-6">
+          <button id="fox-button" class="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 text-lg button-glow">Fox 🦊</button>
+          <button id="dog-button" class="bg-blue-800 hover:bg-blue-900 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 text-lg button-glow">Dog 🐶</button>
+        </div>
+        <p id="high-score-display" class="text-xl mb-6 text-center">High Score: None</p>
+        <button id="start-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 text-lg w-full button-glow hidden">Start Game</button>
+        <button id="clear-data-button" class="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg mt-4 transition duration-200 w-full">Clear Data</button>
+      </div>
+    </div>
+    <div id="game-over-screen" class="absolute inset-0 flex flex-col items-center justify-center text-white rounded-lg hidden">
+      <div class="bg-black bg-opacity-90 p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-5xl font-bold mb-6 tracking-tight text-center glow">Game Over!</h1>
+        <p id="final-score" class="text-2xl mb-4 text-center">Score: 0</p>
+        <p id="high-score-gameover" class="text-xl mb-6 text-center">High Score: None</p>
+        <button id="restart-button" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 text-lg w-full button-glow">Restart</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    let player, aliens, bullets, enemyBullets, shields;
+    let score = 0;
+    let highScore = 0;
+    let highScorePlayer = 'None';
+    let playerName = '';
+    let gameState = 'start';
+    let playerEmoji = '🦊';
+    let wave = 1;
+
+    // Create stars dynamically
+    window.onload = () => {
+      const starsContainer = document.getElementById('stars');
+      for (let i = 0; i < 100; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.width = `${Math.random() * 3 + 1}px`;
+        star.style.height = star.style.width;
+        star.style.left = `${Math.random() * 100}%`;
+        star.style.top = `${Math.random() * 100}%`;
+        star.style.animationDelay = `${Math.random() * 2}s`;
+        starsContainer.appendChild(star);
+      }
+    };
+
+    function setup() {
+      let canvas = createCanvas(800, 800);
+      canvas.parent('game-container');
+      textFont('Arial');
+      textAlign(CENTER, CENTER);
+      resetGame();
+      loadHighScore();
+      updateHighScoreDisplay();
+      document.getElementById('fox-button').addEventListener('click', () => {
+        playerEmoji = '🦊';
+        document.getElementById('start-button').classList.remove('hidden');
+      });
+      document.getElementById('dog-button').addEventListener('click', () => {
+        playerEmoji = '🐶';
+        document.getElementById('start-button').classList.remove('hidden');
+      });
+      document.getElementById('start-button').addEventListener('click', () => {
+        playerName = document.getElementById('player-name').value.trim() || 'Player';
+        gameState = 'playing';
+        document.getElementById('start-screen').classList.add('hidden');
+      });
+      document.getElementById('restart-button').addEventListener('click', () => {
+        resetGame();
+        gameState = 'playing';
+        document.getElementById('game-over-screen').classList.add('hidden');
+      });
+      document.getElementById('clear-data-button').addEventListener('click', () => {
+        localStorage.removeItem('frogInvadersHighScore');
+        localStorage.removeItem('frogInvadersHighScorePlayer');
+        highScore = 0;
+        highScorePlayer = 'None';
+        updateHighScoreDisplay();
+      });
+      document.getElementById('start-screen').classList.remove('hidden');
+    }
+
+    function draw() {
+      background(0);
+      if (gameState === 'start') {
+        return;
+      } else if (gameState === 'gameover') {
+        updateHighScore();
+        document.getElementById('final-score').textContent = `Score: ${score}`;
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        return;
+      }
+
+      // Draw shields
+      fill(255);
+      textSize(40);
+      for (let shield of shields) {
+        if (shield.health > 0) {
+          text('🟪', shield.x, shield.y);
+        }
+      }
+
+      // Draw player
+      fill(255);
+      textSize(40);
+      text(playerEmoji, player.x, player.y);
+
+      // Update and draw aliens
+      if (frameCount % (50 - wave * 5) === 0) {
+        for (let alien of aliens) {
+          alien.x += alien.speed;
+        }
+        let hitEdge = aliens.some(alien => alien.x <= 40 || alien.x >= width - 40);
+        if (hitEdge) {
+          for (let alien of aliens) {
+            alien.speed *= -1;
+            alien.y += 40 + wave * 5;
+          }
+        }
+        if (aliens.some(alien => alien.y >= height - 60)) {
+          gameState = 'gameover';
+        }
+      }
+      for (let alien of aliens) {
+        fill(255);
+        textSize(40);
+        text(alien.isShooter ? '🐲' : '🐸', alien.x, alien.y);
+        // Shooting logic for shooter frogs
+        if (alien.isShooter && Math.random() < 0.01) {
+          enemyBullets.push({ x: alien.x, y: alien.y + 30 });
+        }
+      }
+
+      // Check alien-shield collisions
+      for (let i = aliens.length - 1; i >= 0; i--) {
+        let alien = aliens[i];
+        for (let j = shields.length - 1; j >= 0; j--) {
+          let shield = shields[j];
+          if (
+            shield.health > 0 &&
+            alien.x >= shield.x - 30 &&
+            alien.x <= shield.x + 30 &&
+            alien.y >= shield.y - 30 &&
+            alien.y <= shield.y + 30
+          ) {
+            shield.health -= 1;
+            aliens.splice(i, 1);
+            break;
+          }
+        }
+      }
+
+      // Check alien-player collisions (skip if player is behind a shield)
+      let isBehindShield = shields.some(shield =>
+        shield.health > 0 &&
+        player.x >= shield.x - 30 &&
+        player.x <= shield.x + 30 &&
+        player.y >= shield.y - 30 &&
+        player.y <= shield.y + 30
+      );
+      if (!isBehindShield) {
+        for (let i = aliens.length - 1; i >= 0; i--) {
+          let alien = aliens[i];
+          if (
+            alien.x >= player.x - 30 &&
+            alien.x <= player.x + 30 &&
+            alien.y >= player.y - 30 &&
+            alien.y <= player.y + 30
+          ) {
+            player.health -= 1;
+            aliens.splice(i, 1);
+            if (player.health <= 0) {
+              gameState = 'gameover';
+            }
+          }
+        }
+      }
+
+      // Update and draw player bullets
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        let bullet = bullets[i];
+        bullet.y -= 8;
+        fill(255);
+        textSize(12);
+        text('•', bullet.x, bullet.y);
+        // Check bullet-shield collisions
+        let hitShield = false;
+        for (let j = shields.length - 1; j >= 0; j--) {
+          let shield = shields[j];
+          if (
+            shield.health > 0 &&
+            bullet.x >= shield.x - 30 &&
+            bullet.x <= shield.x + 30 &&
+            bullet.y >= shield.y - 30 &&
+            bullet.y <= shield.y + 30
+          ) {
+            shield.health -= 1;
+            bullets.splice(i, 1);
+            hitShield = true;
+            break;
+          }
+        }
+        if (hitShield) continue;
+        // Check bullet-alien collisions
+        for (let j = aliens.length - 1; j >= 0; j--) {
+          let alien = aliens[j];
+          if (
+            bullet.x >= alien.x - 25 &&
+            bullet.x <= alien.x + 25 &&
+            bullet.y >= alien.y - 25 &&
+            bullet.y <= alien.y + 25
+          ) {
+            aliens.splice(j, 1);
+            bullets.splice(i, 1);
+            score += 10;
+            break;
+          }
+        }
+        if (bullet.y < 0) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      // Update and draw enemy bullets
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        let bullet = enemyBullets[i];
+        bullet.y += 4; // Slower bullet speed
+        fill(255, 0, 0);
+        textSize(12);
+        text('•', bullet.x, bullet.y);
+        // Check bullet-shield collisions
+        let hitShield = false;
+        for (let j = shields.length - 1; j >= 0; j--) {
+          let shield = shields[j];
+          if (
+            shield.health > 0 &&
+            bullet.x >= shield.x - 30 &&
+            bullet.x <= shield.x + 30 &&
+            bullet.y >= shield.y - 30 &&
+            bullet.y <= shield.y + 30
+          ) {
+            shield.health -= 1;
+            enemyBullets.splice(i, 1);
+            hitShield = true;
+            break;
+          }
+        }
+        if (hitShield) continue;
+        // Check bullet-player collisions (skip if behind shield)
+        if (
+          !isBehindShield &&
+          bullet.x >= player.x - 30 &&
+          bullet.x <= player.x + 30 &&
+          bullet.y >= player.y - 30 &&
+          bullet.y <= player.y + 30
+        ) {
+          player.health -= 1;
+          enemyBullets.splice(i, 1);
+          if (player.health <= 0) {
+            gameState = 'gameover';
+          }
+        } else if (bullet.y > height) {
+          enemyBullets.splice(i, 1);
+        }
+      }
+
+      // Remove destroyed shields
+      shields = shields.filter(shield => shield.health > 0);
+
+      // Draw score, wave, and health panel
+      fill(0, 0, 0, 180);
+      rect(0, 0, width, 80);
+      fill(255);
+      textSize(24);
+      textAlign(LEFT);
+      textStyle(BOLD);
+      text(`Score: ${score}`, 20, 40);
+      textAlign(CENTER);
+      text(`Wave: ${wave}`, width / 2, 40);
+      textAlign(RIGHT);
+      text(`Health:`, width - 100, 40);
+      // Health bar
+      fill(255, 0, 0);
+      rect(width - 80, 30, Math.max(player.health * 20, 0), 10);
+      let totalAliens = 20 + (wave - 1) * 10;
+      let remaining = aliens.length;
+      fill(139, 92, 246, 200);
+      rect(20, 60, (width - 40) * (1 - remaining / totalAliens), 5);
+
+      // Check win condition (clear wave)
+      if (aliens.length === 0) {
+        wave += 1;
+        resetGame();
+        score += 100 * wave;
+      }
+    }
+
+    function keyPressed() {
+      if (gameState !== 'playing') return;
+      if (keyCode === LEFT_ARROW) {
+        player.x = constrain(player.x - 40, 40, width - 40);
+      } else if (keyCode === RIGHT_ARROW) {
+        player.x = constrain(player.x + 40, 40, width - 40);
+      } else if (key === ' ') {
+        bullets.push({ x: player.x, y: player.y - 30 });
+      }
+    }
+
+    function resetGame() {
+      player = { x: width / 2, y: height - 40, health: 3 };
+      aliens = [];
+      enemyBullets = [];
+      bullets = [];
+      // Initialize shields
+      shields = [
+        { x: 200, y: 600, health: 5 },
+        { x: 400, y: 600, health: 5 },
+        { x: 600, y: 600, health: 5 }
+      ];
+      let baseCount = 20 + (wave - 1) * 10; // 20 aliens in Wave 1, +10 per wave
+      let maxAliens = Math.min(baseCount, 100); // Cap at 100 aliens
+      let formation = getFormation(wave, maxAliens);
+      for (let pos of formation) {
+        aliens.push({
+          x: pos.x,
+          y: pos.y,
+          speed: 20 + wave * 4,
+          isShooter: Math.random() < 0.2 // 20% chance to be a shooter
+        });
+      }
+    }
+
+    function getFormation(wave, count) {
+      let positions = [];
+      let centerX = width / 2;
+      let startY = 60;
+      let spacing = 60;
+
+      if (wave % 3 === 1) { // V-shape formation
+        let rows = Math.ceil(count / 5);
+        let aliensPlaced = 0;
+        for (let row = 0; row < rows && aliensPlaced < count; row++) {
+          let aliensInRow = Math.min(5 - row, count - aliensPlaced);
+          for (let i = 0; i < aliensInRow; i++) {
+            let offset = Math.abs(i - (aliensInRow - 1) / 2) * spacing;
+            let x = centerX + (i < aliensInRow / 2 ? -offset : offset);
+            let y = startY + row * spacing;
+            positions.push({ x, y });
+            aliensPlaced++;
+          }
+        }
+      } else if (wave % 3 === 2) { // Diamond formation
+        let rows = Math.ceil(count / 5);
+        let aliensPlaced = 0;
+        for (let row = 0; row < rows && aliensPlaced < count; row++) {
+          let aliensInRow = row < rows / 2 ? row + 1 : rows - row;
+          for (let i = 0; i < aliensInRow && aliensPlaced < count; i++) {
+            let offset = (aliensInRow - 1 - i) * spacing;
+            let x = centerX - (aliensInRow - 1) * spacing / 2 + i * spacing;
+            let y = startY + (row < rows / 2 ? row : rows - row - 1) * spacing;
+            positions.push({ x, y });
+            aliensPlaced++;
+          }
+        }
+      } else { // Grid formation
+        let cols = 10;
+        let rows = Math.ceil(count / cols);
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols && positions.length < count; col++) {
+            let x = 60 + col * spacing;
+            let y = startY + row * spacing;
+            positions.push({ x, y });
+          }
+        }
+      }
+      return positions;
+    }
+
+    function loadHighScore() {
+      highScore = parseInt(localStorage.getItem('frogInvadersHighScore')) || 0;
+      highScorePlayer = localStorage.getItem('frogInvadersHighScorePlayer') || 'None';
+    }
+
+    function updateHighScore() {
+      if (score > highScore) {
+        highScore = score;
+        highScorePlayer = playerName;
+        localStorage.setItem('frogInvadersHighScore', highScore);
+        localStorage.setItem('frogInvadersHighScorePlayer', highScorePlayer);
+        updateHighScoreDisplay();
+      }
+    }
+
+    function updateHighScoreDisplay() {
+      let displayText = highScore > 0 ? `High Score: ${highScore} by ${highScorePlayer}` : 'High Score: None';
+      document.getElementById('high-score-display').textContent = displayText;
+      document.getElementById('high-score-gameover').textContent = displayText;
+    }
+  </script>
+</body>
+</html>
